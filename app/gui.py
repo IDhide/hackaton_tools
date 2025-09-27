@@ -1,46 +1,65 @@
 import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QWidget
 import requests
-from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel
 
-class ApiRequestThread(QThread):
-    result_ready = pyqtSignal(str)
 
-    def run(self):
-        response = requests.get('https://jsonplaceholder.typicode.com/posts')
-        if response.status_code == 200:
-            self.result_ready.emit(response.text)
-        else:
-            self.result_ready.emit('Error')
-
-class MyWindow(QWidget):
+class ToolManagementApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.init_ui()
 
-        self.setWindowTitle("PyQt API Example")
-        self.setGeometry(100, 100, 300, 200)
+    def init_ui(self):
+        self.setWindowTitle("Tool Management System")
+        self.setGeometry(100, 100, 500, 300)
 
+        # Layout
         self.layout = QVBoxLayout()
-        self.button = QPushButton("Fetch Data", self)
-        self.button.clicked.connect(self.fetch_data)
-        self.label = QLabel("Response will appear here", self)
 
-        self.layout.addWidget(self.button)
-        self.layout.addWidget(self.label)
-        self.setLayout(self.layout)
+        # Upload Image Button
+        self.upload_button = QPushButton('Upload Image', self)
+        self.upload_button.clicked.connect(self.upload_image)
+        self.layout.addWidget(self.upload_button)
 
-        self.api_thread = ApiRequestThread()
-        self.api_thread.result_ready.connect(self.display_result)
+        # Result Labels
+        self.result_label = QLabel('Recognition Result: ', self)
+        self.layout.addWidget(self.result_label)
 
-    def fetch_data(self):
-        self.label.setText("Loading...")
-        self.api_thread.start()
+        self.confidence_label = QLabel('Confidence: ', self)
+        self.layout.addWidget(self.confidence_label)
 
-    def display_result(self, data):
-        self.label.setText(data)
+        # Exit Button
+        self.quit_button = QPushButton('Exit', self)
+        self.quit_button.clicked.connect(self.quit_app)
+        self.layout.addWidget(self.quit_button)
+
+        # Central widget
+        central_widget = QWidget(self)
+        central_widget.setLayout(self.layout)
+        self.setCentralWidget(central_widget)
+
+    def upload_image(self):
+        # Open file dialog to select an image
+        options = QFileDialog.Options()
+        file_name, _ = QFileDialog.getOpenFileName(self, "Select an Image", "", "Images (*.png *.xpm *.jpg)",
+                                                   options=options)
+
+        if file_name:
+            # Send the image to the backend (FastAPI)
+            files = {'file': open(file_name, 'rb')}
+            response = requests.post('http://127.0.0.1:8000/tools/upload', files=files)
+            result = response.json()
+
+            # Show recognition results
+            self.result_label.setText(f"Recognition Result: {result['tool_name']}")
+            self.confidence_label.setText(f"Confidence: {result['confidence']}%")
+
+    def quit_app(self):
+        self.close()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MyWindow()
+    window = ToolManagementApp()
     window.show()
     sys.exit(app.exec_())
+
